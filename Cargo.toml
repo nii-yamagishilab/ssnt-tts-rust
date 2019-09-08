@@ -1,0 +1,12 @@
+[package]
+name = "ssnt_tts"
+version = "0.1.0"
+authors = ["Yusuke Yasuda <yusuke.007.yasud@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+rayon = "1.1"
+
+[[test]]
+name = "test_decoding"
+path = "tests/test_decoding.rs"
