@@ -10,3 +10,6 @@ rayon = "1.1"
 [[test]]
 name = "test_decoding"
 path = "tests/test_decoding.rs"
+
+[workspace]
+members = ["ssnt_tts_c"]
