@@ -6,7 +6,7 @@ use libc::c_float;
 
 
 #[no_mangle]
-pub extern fn ssnt_tts_beam_search_decode(h: *const c_float, log_prob_history: *const c_float, t: *const i32, u: *const i32, max_t: i32, beam_width: i32, prediction: *mut i32, log_probs: *mut c_float, next_t: *mut i32, next_u: *mut i32, is_finished: *mut bool, beam_branch: *mut i32) -> () {
+pub extern fn ssnt_tts_beam_search_decode(h: *const c_float, log_prob_history: *const c_float, t: *const i32, u: *const i32, max_t: *const i32, beam_width: i32, prediction: *mut i32, log_probs: *mut c_float, next_t: *mut i32, next_u: *mut i32, is_finished: *mut bool, beam_branch: *mut i32) -> () {
     // Restricted to single batch.
     let batch_size = 1;
     let n_transition_classes = 2;
@@ -32,6 +32,12 @@ pub extern fn ssnt_tts_beam_search_decode(h: *const c_float, log_prob_history: *
         assert!(!u.is_null());
         let u_len = batch_size * beam_width;
         std::slice::from_raw_parts(u, u_len as usize)
+    };
+
+    let max_t = unsafe {
+        assert!(!max_t.is_null());
+        let max_t_len = batch_size * beam_width;
+        std::slice::from_raw_parts(max_t, max_t_len as usize)
     };
 
     let prediction = unsafe {
@@ -70,6 +76,6 @@ pub extern fn ssnt_tts_beam_search_decode(h: *const c_float, log_prob_history: *
         std::slice::from_raw_parts_mut(beam_branch, beam_branch_len as usize)
     };
 
-    let ssnt_tts = SsntTtsCpu::new(batch_size, max_t as usize, 0 as usize);
-    ssnt_tts.beam_search_decode(h, log_prob_history, t, u, beam_width, beam_width, prediction, log_probs, next_t, next_u, is_finished, beam_branch);
+    let ssnt_tts = SsntTtsCpu::new(batch_size);
+    ssnt_tts.beam_search_decode(h, log_prob_history, t, u, max_t, beam_width, beam_width, prediction, log_probs, next_t, next_u, is_finished, beam_branch);
 }
