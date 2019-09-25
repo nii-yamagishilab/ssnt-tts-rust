@@ -3,6 +3,7 @@ extern crate rayon;
 use std::cmp::Ordering;
 use rayon::prelude::*;
 
+#[derive(PartialEq)]
 enum Transition {
     Emit = 0,
     Shift = 1,
@@ -46,14 +47,13 @@ impl<'a> BeamSearchDecodingTable<'a> {
         t >= 0 && t < self.max_t
     }
 
-    fn decode_beam_at(&self, w: usize, t: usize, _u: usize) -> Option<Vec<(usize, f32)>> {
+    fn decode_beam_at(&self, w: usize, t: usize, _u: usize) -> Option<Vec<(Transition, f32)>> {
         if !self.is_defined_at(t) {
             return None;
         }
         let branch = self.beam_branch(w);
-        let input = &branch[0..self.transition_size];
-        let input_copy: Vec<(usize, f32)> = input.iter().map(|v| *v).enumerate().collect();
-        Some(input_copy)
+        let input = vec![(Transition::Emit, branch[0]), (Transition::Shift, branch[1])];
+        Some(input)
     }
 }
 
@@ -172,7 +172,7 @@ impl SsntTts for SsntTtsCpu {
             }
             Some(results) => {
                 results.into_iter().map(|(prediction, log_prob)| {
-                    if prediction as i32 == Transition::Emit as i32 && t == self.max_t {
+                    if prediction == Transition::Emit && t == self.max_t {
                         DecodeResult {
                             prediction: prediction as i32,
                             log_prob: log_prob_history + log_prob,
@@ -181,7 +181,7 @@ impl SsntTts for SsntTtsCpu {
                             is_finished: true,
                             parent_branch: w,
                         }
-                    } else if prediction as i32 == Transition::Shift as i32 {
+                    } else if prediction == Transition::Shift {
                         // Shift transition. Proceed to t + 1.
                         DecodeResult {
                             prediction: prediction as i32,
