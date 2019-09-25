@@ -10,9 +10,8 @@ typedef struct {
 } ssnt_options_t;
 
 extern "C" void ssnt_tts_beam_search_decode(const float *h, const float *log_prob_history, const int *t, const int *u,
-                                            const int *max_t, int beam_width,
-                                            int *prediction, float *log_prob, int *next_t, int *next_u,
-                                            bool *is_finished, int *beam_branch);
+                                            int max_t, int beam_width, int *prediction, float *log_prob, int *next_t,
+                                            int *next_u, bool *is_finished, int *beam_branch);
 
 
 REGISTER_OP("SSNTBeamSearchDecode")
@@ -20,8 +19,8 @@ REGISTER_OP("SSNTBeamSearchDecode")
     .Input("log_prob_history: float32")
     .Input("t: int32")
     .Input("u: int32")
-    .Input("max_t: int32")
     .Attr("beam_width: int")
+    .Attr("max_t: int")
     .Output("prediction: int32")
     .Output("log_prob: float32")
     .Output("next_t: int32")
@@ -37,6 +36,7 @@ namespace ssnt {
     public:
         explicit SSNTBeamSearchDecodeOpCPU(tf::OpKernelConstruction *ctx) : tf::OpKernel(ctx) {
             OP_REQUIRES_OK(ctx, ctx->GetAttr("beam_width", &beam_width_));
+            OP_REQUIRES_OK(ctx, ctx->GetAttr("max_t", &max_t_));
         }
 
         void Compute(tf::OpKernelContext *ctx) override {
@@ -45,12 +45,10 @@ namespace ssnt {
             const tf::Tensor *log_prob_history;
             const tf::Tensor *t;
             const tf::Tensor *u;
-            const tf::Tensor *max_t;
             OP_REQUIRES_OK(ctx, ctx->input("h", &h));
             OP_REQUIRES_OK(ctx, ctx->input("log_prob_history", &log_prob_history));
             OP_REQUIRES_OK(ctx, ctx->input("t", &t));
             OP_REQUIRES_OK(ctx, ctx->input("u", &u));
-            OP_REQUIRES_OK(ctx, ctx->input("max_t", &max_t));
 
             OP_REQUIRES(ctx, h->shape().dims() == 2,
                         tf::errors::InvalidArgument("h is not a 2D-Tensor"));
@@ -60,13 +58,10 @@ namespace ssnt {
                         tf::errors::InvalidArgument("t is not 1D-Tensor"));
             OP_REQUIRES(ctx, u->shape().dims() == 1,
                         tf::errors::InvalidArgument("u is not 1D-Tensor"));
-            OP_REQUIRES(ctx, max_t->shape().dims() == 1,
-                        tf::errors::InvalidArgument("max_t is not 1D-Tensor"));
             OP_REQUIRES(ctx, h->shape().dim_size(0) == beam_width_,
                         tf::errors::InvalidArgument("h does not have beam width: ", beam_width_));
             OP_REQUIRES(ctx, h->shape().dim_size(0) == t->shape().dim_size(0) &&
-                             t->shape().dim_size(0) == u->shape().dim_size(0) &&
-                             u->shape().dim_size(0) == max_t->shape().dim_size(0),
+                             t->shape().dim_size(0) == u->shape().dim_size(0),
                         tf::errors::InvalidArgument("Incompatible beam widths"));
 
             const auto &h_shape = h->shape();
@@ -77,7 +72,6 @@ namespace ssnt {
             auto log_prob_history_t = log_prob_history->vec<float>();
             auto t_t = t->vec<int32_t>();
             auto u_t = u->vec<int32_t>();
-            auto max_t_t = max_t->vec<int32_t>();
 
             OP_REQUIRES(ctx, num_classes == 2,
                         tf::errors::InvalidArgument("The size of transition class should be 2."));
@@ -115,7 +109,7 @@ namespace ssnt {
                                         log_prob_history_t.data(),
                                         t_t.data(),
                                         u_t.data(),
-                                        max_t_t.data(),
+                                        max_t_,
                                         beam_width_,
                                         prediction_t.data(),
                                         log_prob_t.data(),
@@ -127,6 +121,7 @@ namespace ssnt {
 
     private:
         int beam_width_;
+        int max_t_;
 
         void set_zero(tf::Tensor *t) {
             t->flat<float>().setZero();
