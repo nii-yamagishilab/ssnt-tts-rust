@@ -1,7 +1,7 @@
 extern crate ssnt_tts;
 extern crate libc;
 
-use ssnt_tts::{SsntTts, SsntTtsCpu};
+use ssnt_tts::{SsntTts, SsntTtsCpu, util};
 use libc::c_float;
 
 
@@ -72,4 +72,38 @@ pub extern fn ssnt_tts_beam_search_decode(h: *const c_float, log_prob_history: *
 
     let ssnt_tts = SsntTtsCpu::new(batch_size, max_t as usize, 0 as usize);
     ssnt_tts.beam_search_decode(h, log_prob_history, t, u, beam_width, beam_width, prediction, log_probs, next_t, next_u, is_finished, beam_branch);
+}
+
+
+#[no_mangle]
+pub extern fn ssnt_extract_best_beam_branch(best_final_branch: i32, beam_branch: *const i32, t_history: *const i32, beam_width: i32, max_u: i32, best_beam_branch: *mut i32, best_t_history: *mut i32) -> () {
+
+    let beam_branch = unsafe {
+        assert!(!beam_branch.is_null());
+        let beam_branch_len = max_u * beam_width;
+        std::slice::from_raw_parts(beam_branch, beam_branch_len as usize)
+    };
+
+    let t_history = unsafe {
+        assert!(!t_history.is_null());
+        let t_history_len = max_u * beam_width;
+        std::slice::from_raw_parts(t_history, t_history_len as usize)
+    };
+
+    let best_beam_branch = unsafe {
+        assert!(!best_beam_branch.is_null());
+        let best_beam_branch_len = max_u;
+        std::slice::from_raw_parts_mut(best_beam_branch, best_beam_branch_len as usize)
+    };
+
+    let best_t_history = unsafe {
+        assert!(!best_t_history.is_null());
+        let best_t_history_len = max_u;
+        std::slice::from_raw_parts_mut(best_t_history, best_t_history_len as usize)
+    };
+
+    let (_best_beam_branch, _best_t_history) = util::extract_best_beam_branch_kernel(best_final_branch, beam_branch, t_history, beam_width, max_u);
+
+    best_beam_branch.copy_from_slice(_best_beam_branch.as_slice());
+    best_t_history.copy_from_slice(_best_t_history.as_slice());
 }

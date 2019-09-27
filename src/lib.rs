@@ -1,5 +1,7 @@
 extern crate rayon;
 
+pub mod util;
+
 use std::cmp::Ordering;
 use rayon::prelude::*;
 
