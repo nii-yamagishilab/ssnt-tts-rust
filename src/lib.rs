@@ -18,13 +18,13 @@ pub struct BeamSearchDecodingTable<'a> {
     // (W)
     log_prob_history: &'a [f32],
     transition_size: usize,
-    max_t: usize,
+    input_length: usize,
     beam_width: usize,
     max_beam_width: usize,
 }
 
 impl<'a> BeamSearchDecodingTable<'a> {
-    pub fn new(input: &'a [f32], log_prob_history: &'a [f32], max_t: usize, beam_width: usize, max_beam_width: usize) -> BeamSearchDecodingTable<'a> {
+    pub fn new(input: &'a [f32], log_prob_history: &'a [f32], input_length: usize, beam_width: usize, max_beam_width: usize) -> BeamSearchDecodingTable<'a> {
         let transition_size = 2;
         assert_eq!(input.len(), beam_width * transition_size, "input.len(): {}, beam_width: {}, transition_size: {}", input.len(), beam_width, transition_size);
         assert_eq!(log_prob_history.len(), beam_width);
@@ -32,7 +32,7 @@ impl<'a> BeamSearchDecodingTable<'a> {
             input,
             log_prob_history,
             transition_size,
-            max_t,
+            input_length,
             beam_width,
             max_beam_width,
         }
@@ -46,7 +46,7 @@ impl<'a> BeamSearchDecodingTable<'a> {
 
     fn is_defined_at(&self, t: usize) -> bool {
         // ToDo: use input_length isntead of max_t
-        t >= 0 && t < self.max_t
+        t >= 0 && t < self.input_length
     }
 
     fn decode_beam_at(&self, w: usize, t: usize, _u: usize) -> Option<Vec<(Transition, f32)>> {
@@ -82,17 +82,17 @@ impl DecodeResult {
 
 pub struct SsntTtsCpu {
     batch_size: i32,
-    max_t: usize,
+    input_length: usize,
     max_u: usize,
     transition_size: usize,
 }
 
 impl SsntTtsCpu {
-    pub fn new(batch_size: i32, max_t: usize, max_u: usize) -> SsntTtsCpu {
+    pub fn new(batch_size: i32, input_length: usize, max_u: usize) -> SsntTtsCpu {
         let transition_size = 2;
         SsntTtsCpu {
             batch_size,
-            max_t,
+            input_length,
             max_u,
             transition_size,
         }
@@ -122,7 +122,7 @@ impl SsntTts for SsntTtsCpu {
             .zip(beam_branch.par_chunks_mut(max_beam_width as usize))
             .zip(is_finished.par_chunks_mut(max_beam_width as usize))
             .for_each(|(((((((((h, log_prob_history), t), u), prediction), log_probs), next_t), next_u), w), is_finished)| {
-                let table = BeamSearchDecodingTable::new(h, log_prob_history, self.max_t, beam_width as usize, max_beam_width as usize);
+                let table = BeamSearchDecodingTable::new(h, log_prob_history, self.input_length, beam_width as usize, max_beam_width as usize);
                 let t: Vec<usize> = t.iter().map(|v| *v as usize).collect();
                 let u: Vec<usize> = u.iter().map(|v| *v as usize).collect();
                 let results = self.beam_search_kernel(&table, t.as_slice(), u.as_slice());
@@ -174,10 +174,20 @@ impl SsntTts for SsntTtsCpu {
             }
             Some(results) => {
                 results.into_iter().map(|(prediction, log_prob)| {
-                    if prediction == Transition::Emit && t == self.max_t {
+                    if prediction == Transition::Emit && t == self.input_length - 1 {
                         DecodeResult {
                             prediction: prediction as i32,
-                            log_prob: log_prob_history + log_prob,
+                            log_prob: log_prob_history,
+                            next_t: t,
+                            next_u: u,
+                            is_finished: true,
+                            parent_branch: w,
+                        }
+                    } else if prediction == Transition::Shift && t == self.input_length - 1 {
+                        // Shift transition is prohibited.
+                        DecodeResult {
+                            prediction: Transition::Emit as i32,
+                            log_prob: log_prob_history,
                             next_t: t,
                             next_u: u,
                             is_finished: true,
