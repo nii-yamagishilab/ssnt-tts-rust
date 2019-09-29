@@ -49,6 +49,11 @@ namespace ssnt {
             const auto &beam_branch_shape = beam_branch->shape();
             const auto max_u = beam_branch_shape.dim_size(0);
 
+            OP_REQUIRES(ctx, beam_branch->shape().num_elements() == max_u * beam_width_,
+                        tf::errors::InvalidArgument("beam_branch has invalid size"));
+            OP_REQUIRES(ctx, t_history->shape().num_elements() == max_u * beam_width_,
+                        tf::errors::InvalidArgument("t_history has invalid size"));
+
             auto best_final_branch_t = best_final_branch->scalar<int32_t>();
             auto beam_branch_t = beam_branch->tensor<int32_t, 2>();
             auto t_history_t = t_history->tensor<int32_t, 2>();
