@@ -17,6 +17,7 @@ pub struct BeamSearchDecodingTable<'a> {
     input: &'a [f32],
     // (W)
     log_prob_history: &'a [f32],
+    is_finished: &'a [bool],
     transition_size: usize,
     input_length: usize,
     beam_width: usize,
@@ -24,13 +25,14 @@ pub struct BeamSearchDecodingTable<'a> {
 }
 
 impl<'a> BeamSearchDecodingTable<'a> {
-    pub fn new(input: &'a [f32], log_prob_history: &'a [f32], input_length: usize, beam_width: usize, max_beam_width: usize) -> BeamSearchDecodingTable<'a> {
+    pub fn new(input: &'a [f32], log_prob_history: &'a [f32], is_finished: &'a [bool], input_length: usize, beam_width: usize, max_beam_width: usize) -> BeamSearchDecodingTable<'a> {
         let transition_size = 2;
         assert_eq!(input.len(), beam_width * transition_size, "input.len(): {}, beam_width: {}, transition_size: {}", input.len(), beam_width, transition_size);
         assert_eq!(log_prob_history.len(), beam_width);
         BeamSearchDecodingTable {
             input,
             log_prob_history,
+            is_finished,
             transition_size,
             input_length,
             beam_width,
@@ -45,12 +47,14 @@ impl<'a> BeamSearchDecodingTable<'a> {
     }
 
     fn is_defined_at(&self, t: usize) -> bool {
-        // ToDo: use input_length isntead of max_t
         t >= 0 && t < self.input_length
     }
 
     fn decode_beam_at(&self, w: usize, t: usize, _u: usize) -> Option<Vec<(Transition, f32)>> {
         if !self.is_defined_at(t) {
+            return None;
+        }
+        if self.is_finished[w] {
             return None;
         }
         let branch = self.beam_branch(w);
@@ -100,19 +104,20 @@ impl SsntTtsCpu {
 }
 
 pub trait SsntTts {
-    fn beam_search_decode(&self, h: &[f32], log_prob_history: &[f32], t: &[i32], u: &[i32], beam_width: i32, max_beam_width: i32, prediction: &mut [i32], log_probs: &mut [f32], next_t: &mut [i32], next_u: &mut [i32], is_finished: &mut [bool], beam_branch: &mut [i32]) -> ();
+    fn beam_search_decode(&self, h: &[f32], log_prob_history: &[f32], is_finished: &[bool], t: &[i32], u: &[i32], beam_width: i32, max_beam_width: i32, prediction: &mut [i32], log_probs: &mut [f32], next_t: &mut [i32], next_u: &mut [i32], next_is_finished: &mut [bool], beam_branch: &mut [i32]) -> ();
 
     fn beam_search_kernel<'a>(&self, h: &BeamSearchDecodingTable<'a>, start_t: &[usize], u: &[usize]) -> Vec<DecodeResult>;
 
-    fn beam_search_kernel_internal<'a>(&self, h: &BeamSearchDecodingTable<'a>, w: usize, t: usize, u: usize, log_prob_history: f32) -> Vec<DecodeResult>;
+    fn beam_search_kernel_internal<'a>(&self, h: &BeamSearchDecodingTable<'a>, w: usize, t: usize, u: usize, log_prob_history: f32, is_finished: bool) -> Vec<DecodeResult>;
 }
 
 
 impl SsntTts for SsntTtsCpu {
 
-    fn beam_search_decode(&self, h: &[f32], log_prob_history: &[f32], t: &[i32], u: &[i32], beam_width: i32, max_beam_width: i32, prediction: &mut [i32], log_probs: &mut [f32], next_t: &mut [i32], next_u: &mut [i32], is_finished: &mut [bool], beam_branch: &mut [i32]) -> () {
+    fn beam_search_decode(&self, h: &[f32], log_prob_history: &[f32], is_finished: &[bool], t: &[i32], u: &[i32], beam_width: i32, max_beam_width: i32, prediction: &mut [i32], log_probs: &mut [f32], next_t: &mut [i32], next_u: &mut [i32], next_is_finished: &mut [bool], beam_branch: &mut [i32]) -> () {
         h.par_chunks(beam_width as usize * self.transition_size)
             .zip(log_prob_history.par_chunks(beam_width as usize))
+            .zip(is_finished.par_chunks(beam_width as usize))
             .zip(t.par_chunks(beam_width as usize))
             .zip(u.par_chunks(beam_width as usize))
             .zip(prediction.par_chunks_mut(max_beam_width as usize))
@@ -120,9 +125,9 @@ impl SsntTts for SsntTtsCpu {
             .zip(next_t.par_chunks_mut(max_beam_width as usize))
             .zip(next_u.par_chunks_mut(max_beam_width as usize))
             .zip(beam_branch.par_chunks_mut(max_beam_width as usize))
-            .zip(is_finished.par_chunks_mut(max_beam_width as usize))
-            .for_each(|(((((((((h, log_prob_history), t), u), prediction), log_probs), next_t), next_u), w), is_finished)| {
-                let table = BeamSearchDecodingTable::new(h, log_prob_history, self.input_length, beam_width as usize, max_beam_width as usize);
+            .zip(next_is_finished.par_chunks_mut(max_beam_width as usize))
+            .for_each(|((((((((((h, log_prob_history), is_finished), t), u), prediction), log_probs), next_t), next_u), w), next_is_finished)| {
+                let table = BeamSearchDecodingTable::new(h, log_prob_history, is_finished, self.input_length, beam_width as usize, max_beam_width as usize);
                 let t: Vec<usize> = t.iter().map(|v| *v as usize).collect();
                 let u: Vec<usize> = u.iter().map(|v| *v as usize).collect();
                 let results = self.beam_search_kernel(&table, t.as_slice(), u.as_slice());
@@ -132,7 +137,7 @@ impl SsntTts for SsntTtsCpu {
                     next_t[i] = result.next_t as i32;
                     next_u[i] = result.next_u as i32;
                     w[i] = result.parent_branch as i32;
-                    is_finished[i] = result.is_finished;
+                    next_is_finished[i] = result.is_finished;
                 });
             });
     }
@@ -144,7 +149,8 @@ impl SsntTts for SsntTtsCpu {
                 let t = start_t[w];
                 let u = u[w];
                 let log_prob_history = h.log_prob_history[w];
-                self.beam_search_kernel_internal(h, w, t, u, log_prob_history)
+                let is_finished = h.is_finished[w];
+                self.beam_search_kernel_internal(h, w, t, u, log_prob_history, is_finished)
             }).collect();
 
         // Here the sorting does not consider prefixes. This is because we are interested in intermediate features which is path dependent.
@@ -159,7 +165,7 @@ impl SsntTts for SsntTtsCpu {
         results
     }
 
-    fn beam_search_kernel_internal<'a>(&self, h: &BeamSearchDecodingTable<'a>, w: usize, t: usize, u: usize, log_prob_history: f32) -> Vec<DecodeResult> {
+    fn beam_search_kernel_internal<'a>(&self, h: &BeamSearchDecodingTable<'a>, w: usize, t: usize, u: usize, log_prob_history: f32, is_finished: bool) -> Vec<DecodeResult> {
         match h.decode_beam_at(w, t, u) {
             // End of input. Return values to fill padding region.
             None => {

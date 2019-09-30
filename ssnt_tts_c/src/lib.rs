@@ -6,7 +6,7 @@ use libc::c_float;
 
 
 #[no_mangle]
-pub extern fn ssnt_tts_beam_search_decode(h: *const c_float, log_prob_history: *const c_float, t: *const i32, u: *const i32, max_t: i32, beam_width: i32, prediction: *mut i32, log_probs: *mut c_float, next_t: *mut i32, next_u: *mut i32, is_finished: *mut bool, beam_branch: *mut i32) -> () {
+pub extern fn ssnt_tts_beam_search_decode(h: *const c_float, log_prob_history: *const c_float, is_finished: *const bool, t: *const i32, u: *const i32, max_t: i32, beam_width: i32, prediction: *mut i32, log_probs: *mut c_float, next_t: *mut i32, next_u: *mut i32, next_is_finished: *mut bool, beam_branch: *mut i32) -> () {
     // Restricted to single batch.
     let batch_size = 1;
     let n_transition_classes = 2;
@@ -20,6 +20,12 @@ pub extern fn ssnt_tts_beam_search_decode(h: *const c_float, log_prob_history: *
         assert!(!log_prob_history.is_null());
         let log_prob_history_len = batch_size * beam_width;
         std::slice::from_raw_parts(log_prob_history, log_prob_history_len as usize)
+    };
+
+    let is_finished = unsafe {
+        assert!(!is_finished.is_null());
+        let is_finished_len = batch_size * beam_width;
+        std::slice::from_raw_parts(is_finished, is_finished_len as usize)
     };
 
     let t = unsafe {
@@ -58,10 +64,10 @@ pub extern fn ssnt_tts_beam_search_decode(h: *const c_float, log_prob_history: *
         std::slice::from_raw_parts_mut(next_u, next_u_len as usize)
     };
 
-    let is_finished = unsafe {
-        assert!(!is_finished.is_null());
-        let is_finished_len = batch_size * beam_width;
-        std::slice::from_raw_parts_mut(is_finished, is_finished_len as usize)
+    let next_is_finished = unsafe {
+        assert!(!next_is_finished.is_null());
+        let next_is_finished_len = batch_size * beam_width;
+        std::slice::from_raw_parts_mut(next_is_finished, next_is_finished_len as usize)
     };
 
     let beam_branch = unsafe {
@@ -71,7 +77,7 @@ pub extern fn ssnt_tts_beam_search_decode(h: *const c_float, log_prob_history: *
     };
 
     let ssnt_tts = SsntTtsCpu::new(batch_size, max_t as usize, 0 as usize);
-    ssnt_tts.beam_search_decode(h, log_prob_history, t, u, beam_width, beam_width, prediction, log_probs, next_t, next_u, is_finished, beam_branch);
+    ssnt_tts.beam_search_decode(h, log_prob_history, is_finished, t, u, beam_width, beam_width, prediction, log_probs, next_t, next_u, next_is_finished, beam_branch);
 }
 
 
