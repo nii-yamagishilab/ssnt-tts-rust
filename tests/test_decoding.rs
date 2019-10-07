@@ -17,6 +17,7 @@ fn beam_search_decode_test() {
     let batch_size: i32 = 1;
     let beam_width = 3;
     let max_beam_width = 3;
+    let is_finished = vec![false, false, false];
     let ssnt_tts_cpu = SsntTtsCpu::new(batch_size, T, U);
 
     let log_prob_history: Vec<f32> = vec![0.0, 0.0, 0.0];
@@ -27,7 +28,7 @@ fn beam_search_decode_test() {
                                        vec![0.8, 0.2],  // 0
     ]).into_iter().flatten().collect();
 
-    let table1 = BeamSearchDecodingTable::new(input1.as_slice(), log_prob_history.as_slice(), T, beam_width, max_beam_width);
+    let table1 = BeamSearchDecodingTable::new(input1.as_slice(), log_prob_history.as_slice(), is_finished.as_slice(), T, beam_width, max_beam_width);
     let start_t: Vec<usize> = vec![0, 0, 0];
     let u = vec![0, 0, 0];
 
@@ -42,7 +43,7 @@ fn beam_search_decode_test() {
                                        vec![0.8, 0.2],  // 0
                                        vec![0.8, 0.2],  // 0
     ]).into_iter().flatten().collect();
-    let table2 = BeamSearchDecodingTable::new(input2.as_slice(), log_prob2.as_slice(), T, beam_width, max_beam_width);
+    let table2 = BeamSearchDecodingTable::new(input2.as_slice(), log_prob2.as_slice(), is_finished.as_slice(),  T, beam_width, max_beam_width);
 
 
     let result2 = ssnt_tts_cpu.beam_search_kernel(&table2, start_t.as_slice(), u.as_slice());
