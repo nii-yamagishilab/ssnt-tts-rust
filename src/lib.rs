@@ -183,7 +183,7 @@ impl SsntTts for SsntTtsCpu {
                     if prediction == Transition::Emit && t == self.input_length - 1 {
                         DecodeResult {
                             prediction: prediction as i32,
-                            log_prob: log_prob_history,
+                            log_prob: log_prob_history + log_prob,
                             next_t: t,
                             next_u: u,
                             is_finished: true,
