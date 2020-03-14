@@ -28,3 +28,34 @@ def extract_best_beam_branch(best_final_branch, beam_branch, t_history, beam_wid
     best_beam_branch.set_shape([beam_branch_shape[0].value])
     best_t_history.set_shape([beam_branch_shape[0].value])
     return best_beam_branch, best_t_history
+
+
+def ssnt_tts_v2_beam_search_decode(h,
+                                   log_prob_history,
+                                   is_finished,
+                                   total_duration,
+                                   duration_table,
+                                   t,
+                                   u,
+                                   input_length,
+                                   output_length,
+                                   batch_size,
+                                   beam_width,
+                                   duration_class_size,
+                                   zero_duration_id):
+    prediction, log_prob, next_t, next_u, next_is_finished, next_total_duration, beam_branch = _ssnt.ssntv2_beam_search_decode(
+        h,
+        log_prob_history,
+        is_finished,
+        total_duration,
+        duration_table,
+        t,
+        u,
+        tf.cast(input_length, dtype=tf.int32),
+        tf.cast(output_length, dtype=tf.int32),
+        batch_size,
+        beam_width,
+        duration_class_size,
+        zero_duration_id)
+
+    return prediction, log_prob, next_t, next_u, next_is_finished, next_total_duration, beam_branch
