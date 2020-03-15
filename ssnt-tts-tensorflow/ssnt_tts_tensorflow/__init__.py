@@ -66,3 +66,12 @@ def ssnt_tts_v2_beam_search_decode(h,
     beam_branch.set_shape(tf.TensorShape([batch_size, beam_width]))
 
     return prediction, log_prob, next_t, next_u, next_is_finished, next_total_duration, beam_branch
+
+
+def order_beam_branch(final_branch, beam_branch, beam_width):
+    ordered_beam_branch = _ssnt.ssnt_order_beam_branch(final_branch, beam_branch, beam_width)
+    beam_branch_shape = beam_branch.get_shape()
+    batch_size = beam_branch_shape[0].value
+    max_t = beam_branch_shape[1].value
+    ordered_beam_branch.set_shape([batch_size, beam_width, max_t])
+    return ordered_beam_branch

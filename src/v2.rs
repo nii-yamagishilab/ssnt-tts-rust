@@ -4,29 +4,6 @@ use std::cmp::Ordering;
 use rayon::prelude::*;
 
 
-pub struct Workspace {
-    batch_size: usize,
-    max_t: usize,
-    max_u: usize,
-    batch_offset: usize,
-    workspace: Vec<f32>,
-}
-
-impl Workspace {
-    pub fn new(batch_size: usize, max_t: usize, max_u: usize) -> Workspace {
-        let batch_offset = max_t * max_u * 2;
-        let workspace: Vec<f32> = vec![0.0; batch_offset * batch_size];
-        Workspace {
-            batch_size,
-            max_t,
-            max_u,
-            batch_offset,
-            workspace,
-        }
-    }
-}
-
-
 struct BatchView<'a, T> {
     batch_offset: usize,
     data: &'a [T],
@@ -54,14 +31,15 @@ struct DecodingTable {
 }
 
 pub struct BeamSearchDecodingTable<'a> {
-    // (W, T, V)
+    // (W, D)
     input: &'a [f32],
     // (W)
     log_prob_history: &'a [f32],
+    // (W)
     is_finished: &'a [bool],
     // (W)
     total_duration: &'a [i32],
-    // (V)
+    // (D)
     duration_table: &'a [i32],
     duration_class_size: usize,
     input_length: usize,
@@ -72,8 +50,11 @@ pub struct BeamSearchDecodingTable<'a> {
 
 impl<'a> BeamSearchDecodingTable<'a> {
     pub fn new(input: &'a [f32], log_prob_history: &'a [f32], is_finished: &'a [bool], total_duration: &'a [i32], duration_table: &'a [i32], duration_class_size: usize, input_length: usize, output_length: usize, beam_width: usize, max_beam_width: usize) -> BeamSearchDecodingTable<'a> {
-        assert_eq!(input.len(), beam_width * input_length * duration_class_size, "beam_width: {}, max_t: {} duration_class_size: {}", beam_width, input_length, duration_class_size);
+        assert_eq!(input.len(), beam_width * duration_class_size, "input: {}, beam_width: {}, duration_class_size: {}", input.len(), beam_width, duration_class_size);
         assert_eq!(log_prob_history.len(), beam_width);
+        assert_eq!(is_finished.len(), beam_width);
+        assert_eq!(total_duration.len(), beam_width);
+        assert_eq!(duration_table.len(), duration_class_size);
         BeamSearchDecodingTable {
             input,
             log_prob_history,
@@ -89,13 +70,12 @@ impl<'a> BeamSearchDecodingTable<'a> {
     }
 
     fn beam_branch(&self, w: usize) -> &'a [f32] {
-        let size = self.input_length * self.duration_class_size;
+        let size = self.duration_class_size;
         let start = w * size;
         &self.input[start..start + size]
     }
 
     fn is_defined_at(&self, t: usize) -> bool {
-        // ToDo: use input_length isntead of max_t
         t >= 0 && t < self.input_length
     }
 
@@ -107,9 +87,7 @@ impl<'a> BeamSearchDecodingTable<'a> {
             return None;
         }
         let branch = self.beam_branch(w);
-        let start = t * self.duration_class_size;
-        let input = &branch[start..start + self.duration_class_size];
-        let mut input_copy: Vec<DecodingTable> = input.iter().take(self.input_length).enumerate().filter_map(|(i, v)| {
+        let mut input_copy: Vec<DecodingTable> = branch.iter().enumerate().filter_map(|(i, v)| {
             let duration = self.duration_table[i];
             let total_duration = self.total_duration[w] + duration;
             if total_duration > self.output_length as i32 {
@@ -178,30 +156,24 @@ impl SsntTtsV2Cpu {
 }
 
 pub trait SsntTtsV2 {
-    fn beam_search_decode(&self, h: &[f32], log_prob_history: &[f32], is_finished: &[bool], total_duration: &[i32], duration_table: &[i32], t: &[i32], u: &[i32], max_t: &[i32], max_u: &[i32], beam_width: i32, max_beam_width: i32, prediction: &mut [i32], log_probs: &mut [f32], next_t: &mut [i32], next_u: &mut [i32], next_is_finished: &mut [bool], next_total_duration: &mut [i32], beam_branch: &mut [i32]) -> ();
+    fn beam_search_decode(&self, h: &[f32], log_prob_history: &[f32], is_finished: &[bool], total_duration: &[i32], duration_table: &[i32], t: &[i32], u: &[i32], max_t: &[i32], max_u: &[i32], batch_size: i32, beam_width: i32, max_beam_width: i32, prediction: &mut [i32], log_probs: &mut [f32], next_t: &mut [i32], next_u: &mut [i32], next_is_finished: &mut [bool], next_total_duration: &mut [i32], beam_branch: &mut [i32]) -> ();
 
     fn beam_search_kernel<'a>(&self, h: &BeamSearchDecodingTable<'a>, start_t: &[usize], u: &[usize]) -> Vec<DecodeResult>;
 
     fn beam_search_kernel_internal<'a>(&self, h: &BeamSearchDecodingTable<'a>, w: usize, t: usize, u: usize, log_prob_history: f32) -> Vec<DecodeResult>;
 }
 
-struct SsntTtsV2Index {
-    U: usize,
-    max_u: usize,
-    duration_class_size: usize,
-}
-
-impl SsntTtsV2Index {
-    fn apply3(&self, t: usize, u: usize, v: usize) -> usize {
-        (t * self.max_u + u) * self.duration_class_size + v
-    }
-}
-
 
 impl SsntTtsV2 for SsntTtsV2Cpu {
-    fn beam_search_decode(&self, h: &[f32], log_prob_history: &[f32], is_finished: &[bool], total_duration: &[i32], duration_table: &[i32], t: &[i32], u: &[i32], input_length: &[i32], output_length: &[i32], beam_width: i32, max_beam_width: i32, prediction: &mut [i32], log_probs: &mut [f32], next_t: &mut [i32], next_u: &mut [i32], next_is_finished: &mut [bool], next_total_duration: &mut [i32], beam_branch: &mut [i32]) -> () {
+    fn beam_search_decode(&self, h: &[f32], log_prob_history: &[f32], is_finished: &[bool], total_duration: &[i32], duration_table: &[i32], t: &[i32], u: &[i32], input_length: &[i32], output_length: &[i32], batch_size: i32, beam_width: i32, max_beam_width: i32, prediction: &mut [i32], log_probs: &mut [f32], next_t: &mut [i32], next_u: &mut [i32], next_is_finished: &mut [bool], next_total_duration: &mut [i32], beam_branch: &mut [i32]) -> () {
+        assert_eq!(prediction.len(), (batch_size * max_beam_width) as usize);
+        assert_eq!(log_probs.len(), (batch_size * beam_width) as usize);
+        assert_eq!(next_is_finished.len(), (batch_size * beam_width) as usize);
+        assert_eq!(next_total_duration.len(), (batch_size * beam_width) as usize);
+        assert_eq!(beam_branch.len(), (batch_size * beam_width) as usize);
         h.par_chunks(beam_width as usize * self.duration_class_size)
             .zip(log_prob_history.par_chunks(beam_width as usize))
+            .zip(is_finished.par_chunks(beam_width as usize))
             .zip(total_duration.par_chunks(beam_width as usize))
             .zip(t.par_chunks(beam_width as usize))
             .zip(u.par_chunks(beam_width as usize))
@@ -214,7 +186,7 @@ impl SsntTtsV2 for SsntTtsV2Cpu {
             .zip(beam_branch.par_chunks_mut(max_beam_width as usize))
             .zip(next_is_finished.par_chunks_mut(max_beam_width as usize))
             .zip(next_total_duration.par_chunks_mut(max_beam_width as usize))
-            .for_each(|(((((((((((((h, log_prob_history), total_duration), t), u), input_length), output_length), prediction), log_probs), next_t), next_u), beam_branch), next_is_finished), next_total_duration)| {
+            .for_each(|((((((((((((((h, log_prob_history), is_finished), total_duration), t), u), input_length), output_length), prediction), log_probs), next_t), next_u), beam_branch), next_is_finished), next_total_duration)| {
                 let table = BeamSearchDecodingTable::new(h,
                                                          log_prob_history,
                                                          is_finished,

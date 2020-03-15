@@ -50,9 +50,9 @@ namespace tf = tensorflow;
 
 namespace ssnt {
 
-    class SSNTBeamSearchDecodeOpCPU : public tf::OpKernel {
+    class SSNTV2BeamSearchDecodeOpCPU : public tf::OpKernel {
     public:
-        explicit SSNTBeamSearchDecodeOpCPU(tf::OpKernelConstruction *ctx) : tf::OpKernel(ctx) {
+        explicit SSNTV2BeamSearchDecodeOpCPU(tf::OpKernelConstruction *ctx) : tf::OpKernel(ctx) {
             OP_REQUIRES_OK(ctx, ctx->GetAttr("beam_width", &beam_width_));
             OP_REQUIRES_OK(ctx, ctx->GetAttr("duration_class_size", &duration_class_size_));
             OP_REQUIRES_OK(ctx, ctx->GetAttr("zero_duration_id", &zero_duration_id_));
@@ -107,7 +107,7 @@ namespace ssnt {
             OP_REQUIRES(ctx, log_prob_history->shape().dim_size(1) == beam_width_,
                         tf::errors::InvalidArgument("log_prob_history does not have beam width: ", beam_width_));
             // is_finished: (B, W)
-            OP_REQUIRES(ctx, is_finished->shape().dim_size(0) == beam_width_,
+            OP_REQUIRES(ctx, is_finished->shape().dim_size(1) == beam_width_,
                         tf::errors::InvalidArgument("is_finished does not have beam width: ", beam_width_));
 
             OP_REQUIRES(ctx, h->shape().dim_size(0) == log_prob_history->shape().dim_size(0) &&
@@ -140,36 +140,36 @@ namespace ssnt {
 
             tf::Tensor *prediction = nullptr;
             OP_REQUIRES_OK(ctx,
-                           ctx->allocate_output("prediction", tf::TensorShape({beam_width}), &prediction));
+                           ctx->allocate_output("prediction", tf::TensorShape({batch_size, beam_width}), &prediction));
             prediction->flat<int32_t>().setConstant(-1);
-            auto prediction_t = prediction->vec<int32_t>();
+            auto prediction_t = prediction->tensor<int32_t, 2>();
 
             tf::Tensor *log_prob = nullptr;
-            OP_REQUIRES_OK(ctx, ctx->allocate_output("log_prob", tf::TensorShape({beam_width}), &log_prob));
-            auto log_prob_t = log_prob->vec<float>();
+            OP_REQUIRES_OK(ctx, ctx->allocate_output("log_prob", tf::TensorShape({batch_size, beam_width}), &log_prob));
+            auto log_prob_t = log_prob->tensor<float, 2>();
 
             tf::Tensor *next_t = nullptr;
-            OP_REQUIRES_OK(ctx, ctx->allocate_output("next_t", tf::TensorShape({beam_width}), &next_t));
-            auto next_t_t = next_t->vec<int32_t>();
+            OP_REQUIRES_OK(ctx, ctx->allocate_output("next_t", tf::TensorShape({batch_size, beam_width}), &next_t));
+            auto next_t_t = next_t->tensor<int32_t, 2>();
 
             tf::Tensor *next_u = nullptr;
-            OP_REQUIRES_OK(ctx, ctx->allocate_output("next_u", tf::TensorShape({beam_width}), &next_u));
-            auto next_u_t = next_u->vec<int32_t>();
+            OP_REQUIRES_OK(ctx, ctx->allocate_output("next_u", tf::TensorShape({batch_size, beam_width}), &next_u));
+            auto next_u_t = next_u->tensor<int32_t, 2>();
 
             tf::Tensor *next_is_finished = nullptr;
-            OP_REQUIRES_OK(ctx, ctx->allocate_output("next_is_finished", tf::TensorShape({beam_width}),
+            OP_REQUIRES_OK(ctx, ctx->allocate_output("next_is_finished", tf::TensorShape({batch_size, beam_width}),
                                                      &next_is_finished));
-            auto next_is_finished_t = next_is_finished->vec<bool>();
+            auto next_is_finished_t = next_is_finished->tensor<bool, 2>();
 
             tf::Tensor *next_total_duration = nullptr;
-            OP_REQUIRES_OK(ctx, ctx->allocate_output("next_total_duration", tf::TensorShape({beam_width}),
+            OP_REQUIRES_OK(ctx, ctx->allocate_output("next_total_duration", tf::TensorShape({batch_size, beam_width}),
                                                      &next_total_duration));
-            auto next_total_duration_t = next_total_duration->vec<int32_t>();
+            auto next_total_duration_t = next_total_duration->tensor<int32_t, 2>();
 
             tf::Tensor *beam_branch = nullptr;
-            OP_REQUIRES_OK(ctx, ctx->allocate_output("beam_branch", tf::TensorShape({beam_width}),
+            OP_REQUIRES_OK(ctx, ctx->allocate_output("beam_branch", tf::TensorShape({batch_size, beam_width}),
                                                      &beam_branch));
-            auto beam_branch_t = beam_branch->vec<int32_t>();
+            auto beam_branch_t = beam_branch->tensor<int32_t, 2>();
 
             ssnt_tts_v2_beam_search_decode(h_t.data(),
                                            log_prob_history_t.data(),
@@ -204,6 +204,6 @@ namespace ssnt {
         };
     };
 
-    REGISTER_KERNEL_BUILDER(Name("SSNTV2BeamSearchDecode").Device(::tensorflow::DEVICE_CPU), SSNTBeamSearchDecodeOpCPU);
+    REGISTER_KERNEL_BUILDER(Name("SSNTV2BeamSearchDecode").Device(::tensorflow::DEVICE_CPU), SSNTV2BeamSearchDecodeOpCPU);
 
 }

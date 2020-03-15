@@ -1,7 +1,7 @@
 extern crate ssnt_tts;
 extern crate libc;
 
-use ssnt_tts::{SsntTts, SsntTtsCpu, util, v2};
+use ssnt_tts::{SsntTts, SsntTtsCpu, util, v2, v2_util};
 use libc::c_float;
 use ssnt_tts::v2::SsntTtsV2;
 
@@ -213,5 +213,28 @@ pub extern fn ssnt_tts_v2_beam_search_decode(h: *const c_float, log_prob_history
     };
 
     let ssnt_tts = v2::SsntTtsV2Cpu::new(batch_size, duration_class_size as usize, zero_duration_id);
-    ssnt_tts.beam_search_decode(h, log_prob_history, is_finished, total_duration, duration_table, t, u, input_length, output_length, beam_width, beam_width, prediction, log_probs, next_t, next_u, next_is_finished, next_total_duration, beam_branch);
+    ssnt_tts.beam_search_decode(h, log_prob_history, is_finished, total_duration, duration_table, t, u, input_length, output_length, batch_size, beam_width, beam_width, prediction, log_probs, next_t, next_u, next_is_finished, next_total_duration, beam_branch);
+}
+
+#[no_mangle]
+pub extern fn ssnt_order_beam_branch(final_branch: *const i32, beam_branch: *const i32, batch_size: i32, beam_width: i32, max_t: i32, ordered_beam_branch: *mut i32) -> () {
+    let final_branch: &[i32] = unsafe {
+        assert!(!final_branch.is_null());
+        let final_branch_len: i32 = batch_size * beam_width;
+        std::slice::from_raw_parts(final_branch, final_branch_len as usize)
+    };
+
+    let beam_branch = unsafe {
+        assert!(!beam_branch.is_null());
+        let beam_branch_len: i32 = batch_size * max_t * beam_width;
+        std::slice::from_raw_parts(beam_branch, beam_branch_len as usize)
+    };
+
+    let ordered_beam_branch: &mut [i32] = unsafe {
+        assert!(!ordered_beam_branch.is_null());
+        let ordered_beam_branch_len = batch_size * beam_width * max_t;
+        std::slice::from_raw_parts_mut(ordered_beam_branch, ordered_beam_branch_len as usize)
+    };
+
+    v2_util::order_beam_branch(final_branch, beam_branch, beam_width, max_t, ordered_beam_branch);
 }
