@@ -92,7 +92,7 @@ impl<'a> BeamSearchDecodingTable<'a> {
             let total_duration = self.total_duration[w] + duration;
             if total_duration > self.output_length as i32 {
                 None
-            } else if t == self.input_length {
+            } else if t == self.input_length - 1 {
                 if total_duration != self.output_length as i32 {
                     None
                 } else {
