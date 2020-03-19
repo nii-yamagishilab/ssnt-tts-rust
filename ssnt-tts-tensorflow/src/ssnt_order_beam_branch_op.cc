@@ -21,9 +21,9 @@ namespace tf = tensorflow;
 
 namespace ssnt {
 
-    class SSNTSSNTOrderBeamBranchOpCPU : public tf::OpKernel {
+    class SSNTOrderBeamBranchOpCPU : public tf::OpKernel {
     public:
-        explicit SSNTSSNTOrderBeamBranchOpCPU(tf::OpKernelConstruction *ctx) : tf::OpKernel(ctx) {
+        explicit SSNTOrderBeamBranchOpCPU(tf::OpKernelConstruction *ctx) : tf::OpKernel(ctx) {
             OP_REQUIRES_OK(ctx, ctx->GetAttr("beam_width", &beam_width_));
         }
 
@@ -72,6 +72,6 @@ namespace ssnt {
     };
 
     REGISTER_KERNEL_BUILDER(Name("SSNTOrderBeamBranch").Device(::tensorflow::DEVICE_CPU),
-                            SSNTSSNTOrderBeamBranchOpCPU);
+                            SSNTOrderBeamBranchOpCPU);
 
 }

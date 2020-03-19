@@ -224,7 +224,7 @@ pub extern fn ssnt_order_beam_branch(final_branch: *const i32, beam_branch: *con
         std::slice::from_raw_parts(final_branch, final_branch_len as usize)
     };
 
-    let beam_branch = unsafe {
+    let beam_branch: &[i32] = unsafe {
         assert!(!beam_branch.is_null());
         let beam_branch_len: i32 = batch_size * max_t * beam_width;
         std::slice::from_raw_parts(beam_branch, beam_branch_len as usize)
@@ -237,4 +237,28 @@ pub extern fn ssnt_order_beam_branch(final_branch: *const i32, beam_branch: *con
     };
 
     v2_util::order_beam_branch(final_branch, beam_branch, beam_width, max_t, ordered_beam_branch);
+}
+
+
+#[no_mangle]
+pub extern fn ssnt_upsample_source_indexes(duration: *const i32, output_length: *const i32, batch_size: i32, beam_width: i32, max_t: i32, max_u: i32, upsampled_source_indexes: *mut i32) -> () {
+    let duration: &[i32] = unsafe {
+        assert!(!duration.is_null());
+        let duration_len: i32 = batch_size * beam_width * max_t;
+        std::slice::from_raw_parts(duration, duration_len as usize)
+    };
+
+    let output_length: &[i32] = unsafe {
+        assert!(!output_length.is_null());
+        let output_length_len: i32 = batch_size;
+        std::slice::from_raw_parts(output_length, output_length_len as usize)
+    };
+
+    let upsampled_source_indexes: &mut [i32] = unsafe {
+        assert!(!upsampled_source_indexes.is_null());
+        let upsampled_source_indexes_len = batch_size * beam_width * max_u;
+        std::slice::from_raw_parts_mut(upsampled_source_indexes, upsampled_source_indexes_len as usize)
+    };
+
+    v2_util::upsample_source_indexes(duration, output_length, beam_width, max_t, max_u, upsampled_source_indexes);
 }

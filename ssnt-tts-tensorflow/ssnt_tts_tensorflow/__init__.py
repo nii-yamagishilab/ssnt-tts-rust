@@ -75,3 +75,17 @@ def order_beam_branch(final_branch, beam_branch, beam_width):
     max_t = beam_branch_shape[1].value
     ordered_beam_branch.set_shape([batch_size, beam_width, max_t])
     return ordered_beam_branch
+
+
+def upsample_source_indexes(duration, output_length, beam_width, out_of_range_source_index):
+    max_u = tf.reduce_max(output_length)
+    upsampled_source_indexes = _ssnt.ssnt_upsample_source_indexes(duration,
+                                                                  output_length,
+                                                                  max_u,
+                                                                  beam_width,
+                                                                  out_of_range_source_index)
+    duration_shape = duration.get_shape()
+    batch_size = duration_shape[0].value
+    max_t = duration_shape[2].value
+    upsampled_source_indexes.set_shape([batch_size, beam_width, max_t])
+    return upsampled_source_indexes

@@ -141,7 +141,7 @@ namespace ssnt {
             tf::Tensor *prediction = nullptr;
             OP_REQUIRES_OK(ctx,
                            ctx->allocate_output("prediction", tf::TensorShape({batch_size, beam_width}), &prediction));
-            prediction->flat<int32_t>().setConstant(-1);
+            SetZeroDuration(prediction);
             auto prediction_t = prediction->tensor<int32_t, 2>();
 
             tf::Tensor *log_prob = nullptr;
@@ -199,8 +199,8 @@ namespace ssnt {
         int duration_class_size_;
         int zero_duration_id_;
 
-        void set_zero(tf::Tensor *t) {
-            t->flat<float>().setZero();
+        void SetZeroDuration(tf::Tensor *t) {
+            t->flat<int32_t>().setConstant(zero_duration_id_);
         };
     };
 
