@@ -36,7 +36,7 @@ namespace ssnt {
 
             OP_REQUIRES(ctx, final_branch->shape().dims() == 2,
                         tf::errors::InvalidArgument("final_branch is not a 2D-Tensor"));
-            OP_REQUIRES(ctx, beam_branch->shape().dims() == 2,
+            OP_REQUIRES(ctx, beam_branch->shape().dims() == 3,
                         tf::errors::InvalidArgument("beam_branch is not a 3D-Tensor"));
             OP_REQUIRES(ctx, beam_branch->shape().dim_size(0) == final_branch->shape().dim_size(0),
                         tf::errors::InvalidArgument("Incompatible batch sizes"));
