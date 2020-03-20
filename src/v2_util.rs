@@ -54,7 +54,6 @@ pub fn upsample_source_indexes(duration: &[i32], output_length: &[i32], beam_wid
                             vec![t as i32; *d as usize]
                         }
                     }).collect();
-                    println!("{:?}", upsampled);
                     assert_eq!(upsampled.len(), output_length[0] as usize);
                     upsampled.into_iter()
                         .zip(upsampled_source_indexes.into_iter().take(output_length[0] as usize))
