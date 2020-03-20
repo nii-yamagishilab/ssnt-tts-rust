@@ -1,6 +1,5 @@
 #include "tensorflow/core/framework/op.h"
 #include "tensorflow/core/framework/op_kernel.h"
-#include "tensorflow/core/kernels/bounds_check.h"
 #include "tensorflow/core/framework/allocator.h"
 
 extern "C" void ssnt_tts_v2_beam_search_decode(const float *h,
