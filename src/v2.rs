@@ -76,7 +76,19 @@ impl<'a> BeamSearchDecodingTable<'a> {
     }
 
     fn is_defined_at(&self, t: usize) -> bool {
-        t >= 0 && t < self.input_length
+        t < self.input_length
+    }
+
+    fn total_duration_bounds(&self, t: usize) -> (i32, i32) {
+        let diagonal: f32 = self.output_length as f32 / self.input_length as f32 * t as f32;
+        // ToDo: configure the range by arguments
+        // + 10% of total frames
+        let upper_range = self.output_length as f32 * 0.1;
+        // - 5% of total frames
+        let lower_range = self.output_length as f32 * 0.05;
+        let lower_bound: i32 = (diagonal - lower_range).max(0.0) as i32;
+        let upper_bound: i32 = (diagonal + upper_range).min(self.output_length as f32) as i32;
+        (lower_bound, upper_bound)
     }
 
     fn decode_beam_at(&self, w: usize, t: usize, u: usize) -> Option<Vec<DecodingTable>> {
@@ -90,7 +102,8 @@ impl<'a> BeamSearchDecodingTable<'a> {
         let mut input_copy: Vec<DecodingTable> = branch.iter().enumerate().filter_map(|(i, v)| {
             let duration = self.duration_table[i];
             let total_duration = self.total_duration[w] + duration;
-            if total_duration > self.output_length as i32 {
+            let (lower_bound, upper_bound) = self.total_duration_bounds(t);
+            if total_duration < lower_bound || total_duration > upper_bound as i32 {
                 None
             } else if t == self.input_length - 1 {
                 if total_duration != self.output_length as i32 {
@@ -135,7 +148,8 @@ impl DecodeResult {
             self.log_prob == other.log_prob &&
             self.next_t == other.next_t &&
             self.next_u == other.next_u &&
-            self.is_finished == other.is_finished
+            self.is_finished == other.is_finished &&
+            self.total_duration == other.total_duration
     }
 }
 
@@ -225,9 +239,12 @@ impl SsntTtsV2 for SsntTtsV2Cpu {
         // Here the sorting does not consider prefixes. This is because we are interested in intermediate features which is path dependent.
         results.sort_by(|a, b| a.log_prob.partial_cmp(&b.log_prob).unwrap_or(Ordering::Equal).reverse());
         results.dedup_by(|a, b| a.eq_ignore_parent(b));
-        if results.len() < h.max_beam_width {
-            for i in 0..(h.max_beam_width - results.len()) {
-                results.push(results[i].clone());
+
+        let n_results: usize = results.len();
+        assert_ne!(n_results, 0, "Beam search could not find a duration sequence with compatible output length: {} for input with length: {}. Please increase duration class size and beam width.", h.output_length, h.input_length);
+        if n_results < h.max_beam_width {
+            for i in 0..(h.max_beam_width - n_results) {
+                results.push(results[i % n_results].clone());
             }
         }
         results.truncate(h.max_beam_width);
