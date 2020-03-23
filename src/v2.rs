@@ -80,7 +80,7 @@ impl<'a> BeamSearchDecodingTable<'a> {
     }
 
     fn total_duration_bounds(&self, t: usize) -> (i32, i32) {
-        let diagonal: f32 = self.output_length as f32 / self.input_length as f32 * t as f32;
+        let diagonal: f32 = self.output_length as f32 / self.input_length as f32 * (t + 1) as f32;
         // ToDo: configure the range by arguments
         // + 10% of total frames
         let upper_range = self.output_length as f32 * 0.1;
@@ -91,6 +91,12 @@ impl<'a> BeamSearchDecodingTable<'a> {
         (lower_bound, upper_bound)
     }
 
+    fn on_diagonal(&self, result: &DecodeResult) -> bool {
+        let diagonal: f32 = self.output_length as f32 / self.input_length as f32 * result.next_t as f32;
+        let diff: f32 = result.total_duration as f32 - diagonal;
+        diff.abs() <= 5.0
+    }
+
     fn decode_beam_at(&self, w: usize, t: usize, u: usize) -> Option<Vec<DecodingTable>> {
         if !self.is_defined_at(t) {
             return None;
@@ -99,7 +105,7 @@ impl<'a> BeamSearchDecodingTable<'a> {
             return None;
         }
         let branch = self.beam_branch(w);
-        let mut input_copy: Vec<DecodingTable> = branch.iter().enumerate().filter_map(|(i, v)| {
+        let input_copy: Vec<DecodingTable> = branch.iter().enumerate().filter_map(|(i, v)| {
             let duration = self.duration_table[i];
             let total_duration = self.total_duration[w] + duration;
             let (lower_bound, upper_bound) = self.total_duration_bounds(t);
@@ -239,6 +245,10 @@ impl SsntTtsV2 for SsntTtsV2Cpu {
         // Here the sorting does not consider prefixes. This is because we are interested in intermediate features which is path dependent.
         results.sort_by(|a, b| a.log_prob.partial_cmp(&b.log_prob).unwrap_or(Ordering::Equal).reverse());
         results.dedup_by(|a, b| a.eq_ignore_parent(b));
+        // Add a diagonal duration candidate to avoid empty search
+        let diagonal_result: Option<DecodeResult> = results.iter().find(|result| {
+            h.on_diagonal(result)
+        }).map(|result| result.clone());
 
         let n_results: usize = results.len();
         assert_ne!(n_results, 0, "Beam search could not find a duration sequence with compatible output length: {} for input with length: {}. Please increase duration class size and beam width.", h.output_length, h.input_length);
@@ -247,8 +257,17 @@ impl SsntTtsV2 for SsntTtsV2Cpu {
                 results.push(results[i % n_results].clone());
             }
         }
-        results.truncate(h.max_beam_width);
-        results
+        match diagonal_result {
+            Some(result) => {
+                results.truncate(h.max_beam_width - 1);
+                results.push(result);
+                results
+            }
+            None => {
+                results.truncate(h.max_beam_width);
+                results
+            }
+        }
     }
 
     fn beam_search_kernel_internal<'a>(&self, h: &BeamSearchDecodingTable<'a>, w: usize, t: usize, u: usize, log_prob_history: f32) -> Vec<DecodeResult> {
