@@ -115,7 +115,7 @@ pub extern fn ssnt_extract_best_beam_branch(best_final_branch: i32, beam_branch:
 }
 
 #[no_mangle]
-pub extern fn ssnt_tts_v2_beam_search_decode(h: *const c_float, log_prob_history: *const c_float, is_finished: *const bool, total_duration: *const i32, duration_table: *const i32, t: *const i32, u: *const i32, input_length: *const i32, output_length: *const i32, batch_size: i32, beam_width: i32, duration_class_size: i32, zero_duration_id: i32, prediction: *mut i32, log_probs: *mut c_float, next_t: *mut i32, next_u: *mut i32, next_is_finished: *mut bool, next_total_duration: *mut i32, beam_branch: *mut i32) -> () {
+pub extern fn ssnt_tts_v2_beam_search_decode(h: *const c_float, log_prob_history: *const c_float, is_finished: *const bool, total_duration: *const i32, duration_table: *const i32, t: *const i32, u: *const i32, input_length: *const i32, output_length: *const i32, batch_size: i32, beam_width: i32, duration_class_size: i32, zero_duration_id: i32, test_mode: bool, prediction: *mut i32, log_probs: *mut c_float, next_t: *mut i32, next_u: *mut i32, next_is_finished: *mut bool, next_total_duration: *mut i32, beam_branch: *mut i32) -> () {
     let h = unsafe {
         assert!(!h.is_null());
         let h_len = batch_size * beam_width * duration_class_size;
@@ -212,7 +212,7 @@ pub extern fn ssnt_tts_v2_beam_search_decode(h: *const c_float, log_prob_history
         std::slice::from_raw_parts_mut(beam_branch, beam_branch_len as usize)
     };
 
-    let ssnt_tts = v2::SsntTtsV2Cpu::new(batch_size, duration_class_size as usize, zero_duration_id);
+    let ssnt_tts = v2::SsntTtsV2Cpu::new(batch_size, duration_class_size as usize, zero_duration_id, test_mode);
     ssnt_tts.beam_search_decode(h, log_prob_history, is_finished, total_duration, duration_table, t, u, input_length, output_length, batch_size, beam_width, beam_width, prediction, log_probs, next_t, next_u, next_is_finished, next_total_duration, beam_branch);
 }
 

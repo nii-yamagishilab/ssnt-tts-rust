@@ -97,7 +97,7 @@ impl<'a> BeamSearchDecodingTable<'a> {
         diff.abs() <= 5.0
     }
 
-    fn decode_beam_at(&self, w: usize, t: usize, u: usize) -> Option<Vec<DecodingTable>> {
+    fn decode_beam_at(&self, w: usize, t: usize, test_mode: bool) -> Option<Vec<DecodingTable>> {
         if !self.is_defined_at(t) {
             return None;
         }
@@ -112,7 +112,7 @@ impl<'a> BeamSearchDecodingTable<'a> {
             if total_duration < lower_bound || total_duration > upper_bound as i32 {
                 None
             } else if t == self.input_length - 1 {
-                if total_duration != self.output_length as i32 {
+                if total_duration != self.output_length as i32 && !test_mode {
                     None
                 } else {
                     Some(DecodingTable {
@@ -163,14 +163,16 @@ pub struct SsntTtsV2Cpu {
     batch_size: i32,
     duration_class_size: usize,
     zero_duration_id: i32,
+    test_mode: bool,
 }
 
 impl SsntTtsV2Cpu {
-    pub fn new(batch_size: i32, duration_class_size: usize, zero_duration_id: i32) -> SsntTtsV2Cpu {
+    pub fn new(batch_size: i32, duration_class_size: usize, zero_duration_id: i32, test_mode: bool) -> SsntTtsV2Cpu {
         SsntTtsV2Cpu {
             batch_size,
             duration_class_size,
             zero_duration_id,
+            test_mode,
         }
     }
 }
@@ -271,7 +273,7 @@ impl SsntTtsV2 for SsntTtsV2Cpu {
     }
 
     fn beam_search_kernel_internal<'a>(&self, h: &BeamSearchDecodingTable<'a>, w: usize, t: usize, u: usize, log_prob_history: f32) -> Vec<DecodeResult> {
-        match h.decode_beam_at(w, t, u) {
+        match h.decode_beam_at(w, t, self.test_mode) {
             // End of input. Return values to fill padding region.
             None => {
                 vec![DecodeResult {

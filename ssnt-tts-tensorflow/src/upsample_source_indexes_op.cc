@@ -43,8 +43,8 @@ namespace ssnt {
 
             OP_REQUIRES(ctx, duration->shape().dims() == 3,
                         tf::errors::InvalidArgument("duration is not a 3D-Tensor"));
-            OP_REQUIRES(ctx, output_length->shape().dims() == 1,
-                        tf::errors::InvalidArgument("output_length is not a 1D-Tensor"));
+            OP_REQUIRES(ctx, output_length->shape().dims() == 2,
+                        tf::errors::InvalidArgument("output_length is not a 2D-Tensor"));
             OP_REQUIRES(ctx, max_u->shape().dims() == 0,
                         tf::errors::InvalidArgument("max_u is not a 0D-Tensor"));
             OP_REQUIRES(ctx, out_of_range_source_index->shape().dims() == 0,
@@ -52,7 +52,9 @@ namespace ssnt {
             OP_REQUIRES(ctx, output_length->shape().dim_size(0) == duration->shape().dim_size(0),
                         tf::errors::InvalidArgument("Incompatible batch sizes"));
             OP_REQUIRES(ctx, duration->shape().dim_size(1) == beam_width_,
-                        tf::errors::InvalidArgument("Incompatible beam width"));
+                        tf::errors::InvalidArgument("Incompatible beam width of duration"));
+            OP_REQUIRES(ctx, output_length->shape().dim_size(1) == beam_width_,
+                        tf::errors::InvalidArgument("Incompatible beam width of output_length"));
 
             // (B, W, T)
             const auto &duration_shape = duration->shape();
@@ -61,7 +63,7 @@ namespace ssnt {
 
 
             auto duration_t = duration->tensor<int32_t, 3>();
-            auto output_length_t = output_length->vec<int32_t>();
+            auto output_length_t = output_length->tensor<int32_t, 2>();
             const auto max_u_t = max_u->scalar<int32_t>();
             const auto out_of_range_source_index_t = out_of_range_source_index->scalar<int32_t>();
 

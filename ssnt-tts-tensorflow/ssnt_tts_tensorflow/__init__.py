@@ -41,7 +41,9 @@ def ssnt_tts_v2_beam_search_decode(h,
                                    output_length,
                                    beam_width,
                                    duration_class_size,
-                                   zero_duration_id):
+                                   zero_duration_id,
+                                   test_mode):
+    output_length = tf.zeros_like(input_length) if test_mode else output_length
     prediction, log_prob, next_t, next_u, next_is_finished, next_total_duration, beam_branch = _ssnt.ssntv2_beam_search_decode(
         h,
         log_prob_history,
@@ -54,7 +56,8 @@ def ssnt_tts_v2_beam_search_decode(h,
         tf.cast(output_length, dtype=tf.int32),
         beam_width,
         duration_class_size,
-        zero_duration_id)
+        zero_duration_id,
+        test_mode)
 
     batch_size = h.shape[0].value
     prediction.set_shape(tf.TensorShape([batch_size, beam_width]))

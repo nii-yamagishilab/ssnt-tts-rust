@@ -40,13 +40,14 @@ pub fn upsample_source_indexes(duration: &[i32], output_length: &[i32], beam_wid
     // (B, W, T)
     duration.par_chunks((beam_width * max_t) as usize)
         // (B)
-        .zip(output_length.par_chunks(1))
+        .zip(output_length.par_chunks(beam_width as usize))
         // (B, W, U)
         .zip(upsampled_source_indexes.par_chunks_mut((beam_width * max_u) as usize))
         .for_each(|((duration, output_length), upsampled_source_indexes)| {
             duration.par_chunks(max_t as usize)
+                .zip(output_length.par_chunks(1))
                 .zip(upsampled_source_indexes.par_chunks_mut(max_u as usize))
-                .for_each(|(duration, upsampled_source_indexes)| {
+                .for_each(|((duration, output_length), upsampled_source_indexes)| {
                     let upsampled: Vec<i32> = duration.into_iter().enumerate().flat_map(|(t, d)| {
                         if *d == 0 {
                             vec![]
