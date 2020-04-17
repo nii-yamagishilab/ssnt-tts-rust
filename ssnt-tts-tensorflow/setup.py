@@ -44,10 +44,10 @@ ext = setuptools.Extension('ssnt_tts_tensorflow.kernels',
 def cmakelist(ext):
     definition = f'''
 project(ssnt_tts_tensorflow CXX)
-add_library(rnnt-tensorflow SHARED {" ".join(ext.sources)})
+add_library(ssnt_tts_tensorflow SHARED {" ".join(ext.sources)})
 include_directories({" ".join(ext.include_dirs)})
 add_definitions({" ".join(ext.define_macros)})
-target_link_libraries(ssnt_tts_tensorflow "{ext.library_dirs}")
+target_link_libraries(ssnt_tts_tensorflow {' '.join(ext.library_dirs)})
     '''
     return definition
 
