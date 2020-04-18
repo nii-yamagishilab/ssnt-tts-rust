@@ -46,10 +46,21 @@ pub struct BeamSearchDecodingTable<'a> {
     output_length: usize,
     beam_width: usize,
     max_beam_width: usize,
+    zero_duration_id: i32,
 }
 
 impl<'a> BeamSearchDecodingTable<'a> {
-    pub fn new(input: &'a [f32], log_prob_history: &'a [f32], is_finished: &'a [bool], total_duration: &'a [i32], duration_table: &'a [i32], duration_class_size: usize, input_length: usize, output_length: usize, beam_width: usize, max_beam_width: usize) -> BeamSearchDecodingTable<'a> {
+    pub fn new(input: &'a [f32],
+               log_prob_history: &'a [f32],
+               is_finished: &'a [bool],
+               total_duration: &'a [i32],
+               duration_table: &'a [i32],
+               duration_class_size: usize,
+               input_length: usize,
+               output_length: usize,
+               beam_width: usize,
+               max_beam_width: usize,
+               zero_duration_id: i32) -> BeamSearchDecodingTable<'a> {
         assert_eq!(input.len(), beam_width * duration_class_size, "input: {}, beam_width: {}, duration_class_size: {}", input.len(), beam_width, duration_class_size);
         assert_eq!(log_prob_history.len(), beam_width);
         assert_eq!(is_finished.len(), beam_width);
@@ -66,6 +77,7 @@ impl<'a> BeamSearchDecodingTable<'a> {
             output_length,
             beam_width,
             max_beam_width,
+            zero_duration_id,
         }
     }
 
@@ -97,17 +109,17 @@ impl<'a> BeamSearchDecodingTable<'a> {
         diff.abs() <= 5.0
     }
 
-    fn decode_beam_at(&self, w: usize, t: usize, test_mode: bool) -> Option<Vec<DecodingTable>> {
+    fn decode_beam_at(&self, w: usize, t: usize, allow_skip: bool, test_mode: bool) -> Option<Vec<DecodingTable>> {
         if !self.is_defined_at(t) {
             return None;
         }
         if self.is_finished[w] {
             return None;
         }
-        let branch = self.beam_branch(w);
+        let branch: &[f32] = self.beam_branch(w);
         let input_copy: Vec<DecodingTable> = branch.iter().enumerate().filter_map(|(i, v)| {
-            let duration = self.duration_table[i];
-            let total_duration = self.total_duration[w] + duration;
+            let duration: i32 = self.duration_table[i];
+            let total_duration: i32 = self.total_duration[w] + duration;
             let (lower_bound, upper_bound) = self.total_duration_bounds(t);
             if !test_mode && (total_duration < lower_bound || total_duration > upper_bound as i32) {
                 None
@@ -115,22 +127,30 @@ impl<'a> BeamSearchDecodingTable<'a> {
                 if !test_mode && total_duration != self.output_length as i32 {
                     None
                 } else {
+                    if !allow_skip && i as i32 == self.zero_duration_id {
+                        None
+                    } else {
+                        Some(DecodingTable {
+                            log_prob: *v,
+                            duration_class: i as i32,
+                            duration,
+                            total_duration,
+                            is_finished: true,
+                        })
+                    }
+                }
+            } else {
+                if !allow_skip && i as i32 == self.zero_duration_id {
+                    None
+                } else {
                     Some(DecodingTable {
                         log_prob: *v,
                         duration_class: i as i32,
                         duration,
                         total_duration,
-                        is_finished: true,
+                        is_finished: false,
                     })
                 }
-            } else {
-                Some(DecodingTable {
-                    log_prob: *v,
-                    duration_class: i as i32,
-                    duration,
-                    total_duration,
-                    is_finished: false,
-                })
             }
         }).collect();
         Some(input_copy)
@@ -163,15 +183,17 @@ pub struct SsntTtsV2Cpu {
     batch_size: i32,
     duration_class_size: usize,
     zero_duration_id: i32,
+    allow_skip: bool,
     test_mode: bool,
 }
 
 impl SsntTtsV2Cpu {
-    pub fn new(batch_size: i32, duration_class_size: usize, zero_duration_id: i32, test_mode: bool) -> SsntTtsV2Cpu {
+    pub fn new(batch_size: i32, duration_class_size: usize, zero_duration_id: i32, allow_skip: bool, test_mode: bool) -> SsntTtsV2Cpu {
         SsntTtsV2Cpu {
             batch_size,
             duration_class_size,
             zero_duration_id,
+            allow_skip,
             test_mode,
         }
     }
@@ -218,7 +240,8 @@ impl SsntTtsV2 for SsntTtsV2Cpu {
                                                          input_length[0] as usize,
                                                          output_length[0] as usize,
                                                          beam_width as usize,
-                                                         max_beam_width as usize);
+                                                         max_beam_width as usize,
+                                                         self.zero_duration_id);
                 let t: Vec<usize> = t.iter().map(|v| *v as usize).collect();
                 let u: Vec<usize> = u.iter().map(|v| *v as usize).collect();
                 let results = self.beam_search_kernel(&table, t.as_slice(), u.as_slice());
@@ -277,7 +300,7 @@ impl SsntTtsV2 for SsntTtsV2Cpu {
     }
 
     fn beam_search_kernel_internal<'a>(&self, h: &BeamSearchDecodingTable<'a>, w: usize, t: usize, u: usize, log_prob_history: f32) -> Vec<DecodeResult> {
-        match h.decode_beam_at(w, t, self.test_mode) {
+        match h.decode_beam_at(w, t, self.allow_skip, self.test_mode) {
             // End of input. Return values to fill padding region.
             None => {
                 vec![DecodeResult {

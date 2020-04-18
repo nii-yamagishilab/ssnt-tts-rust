@@ -15,6 +15,7 @@ extern "C" void ssnt_tts_v2_beam_search_decode(const float *h,
                                                int beam_width,
                                                int duration_class_size,
                                                int zero_duration_id,
+                                               bool allow_skip,
                                                bool test_mode,
                                                int *prediction,
                                                float *log_prob,
@@ -38,6 +39,7 @@ REGISTER_OP("SSNTV2BeamSearchDecode")
         .Attr("beam_width: int")
         .Attr("duration_class_size: int")
         .Attr("zero_duration_id: int")
+        .Attr("allow_skip: bool")
         .Attr("test_mode: bool")
         .Output("prediction: int32")
         .Output("log_prob: float32")
@@ -57,6 +59,7 @@ namespace ssnt {
             OP_REQUIRES_OK(ctx, ctx->GetAttr("beam_width", &beam_width_));
             OP_REQUIRES_OK(ctx, ctx->GetAttr("duration_class_size", &duration_class_size_));
             OP_REQUIRES_OK(ctx, ctx->GetAttr("zero_duration_id", &zero_duration_id_));
+            OP_REQUIRES_OK(ctx, ctx->GetAttr("allow_skip", &allow_skip_));
             OP_REQUIRES_OK(ctx, ctx->GetAttr("test_mode", &test_mode_));
         }
 
@@ -186,6 +189,7 @@ namespace ssnt {
                                            beam_width_,
                                            duration_class_size_,
                                            zero_duration_id_,
+                                           allow_skip_,
                                            test_mode_,
                                            prediction_t.data(),
                                            log_prob_t.data(),
@@ -201,6 +205,7 @@ namespace ssnt {
         int beam_width_;
         int duration_class_size_;
         int zero_duration_id_;
+        bool allow_skip_;
         bool test_mode_;
 
         void SetZeroDuration(tf::Tensor *t) {

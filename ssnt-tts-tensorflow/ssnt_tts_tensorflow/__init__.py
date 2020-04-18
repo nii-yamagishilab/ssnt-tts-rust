@@ -42,6 +42,7 @@ def ssnt_tts_v2_beam_search_decode(h,
                                    beam_width,
                                    duration_class_size,
                                    zero_duration_id,
+                                   allow_skip,
                                    test_mode):
     output_length = tf.zeros_like(input_length) if test_mode else output_length
     prediction, log_prob, next_t, next_u, next_is_finished, next_total_duration, beam_branch = _ssnt.ssntv2_beam_search_decode(
@@ -57,6 +58,7 @@ def ssnt_tts_v2_beam_search_decode(h,
         beam_width,
         duration_class_size,
         zero_duration_id,
+        allow_skip,
         test_mode)
 
     batch_size = h.shape[0].value
