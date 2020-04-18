@@ -109,10 +109,10 @@ impl<'a> BeamSearchDecodingTable<'a> {
             let duration = self.duration_table[i];
             let total_duration = self.total_duration[w] + duration;
             let (lower_bound, upper_bound) = self.total_duration_bounds(t);
-            if total_duration < lower_bound || total_duration > upper_bound as i32 {
+            if !test_mode && (total_duration < lower_bound || total_duration > upper_bound as i32) {
                 None
             } else if t == self.input_length - 1 {
-                if total_duration != self.output_length as i32 && !test_mode {
+                if !test_mode && total_duration != self.output_length as i32 {
                     None
                 } else {
                     Some(DecodingTable {
@@ -248,9 +248,13 @@ impl SsntTtsV2 for SsntTtsV2Cpu {
         results.sort_by(|a, b| a.log_prob.partial_cmp(&b.log_prob).unwrap_or(Ordering::Equal).reverse());
         results.dedup_by(|a, b| a.eq_ignore_parent(b));
         // Add a diagonal duration candidate to avoid empty search
-        let diagonal_result: Option<DecodeResult> = results.iter().find(|result| {
-            h.on_diagonal(result)
-        }).map(|result| result.clone());
+        let diagonal_result: Option<DecodeResult> = if !self.test_mode {
+            results.iter().find(|result| {
+                h.on_diagonal(result)
+            }).map(|result| result.clone())
+        } else {
+            None
+        };
 
         let n_results: usize = results.len();
         assert_ne!(n_results, 0, "Beam search could not find a duration sequence with compatible output length: {} for input with length: {}. Please increase duration class size and beam width.", h.output_length, h.input_length);
