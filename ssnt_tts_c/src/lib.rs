@@ -250,7 +250,7 @@ pub extern fn ssnt_upsample_source_indexes(duration: *const i32, output_length: 
 
     let output_length: &[i32] = unsafe {
         assert!(!output_length.is_null());
-        let output_length_len: i32 = batch_size;
+        let output_length_len: i32 = batch_size * beam_width;
         std::slice::from_raw_parts(output_length, output_length_len as usize)
     };
 

@@ -5,7 +5,7 @@ from ssnt_tts_tensorflow import upsample_source_indexes
 
 class UpsamplingTest(tf.test.TestCase):
 
-    def test_beam_search(self):
+    def test_upsampling(self):
         batch_size = 3
         beam_width = 2
         max_t = 6
@@ -26,7 +26,7 @@ class UpsamplingTest(tf.test.TestCase):
         ], dtype=tf.int32)
         assert duration.shape.as_list() == [batch_size, beam_width, max_t]
 
-        output_length = tf.constant([6, 10, 11], dtype=tf.int32)
+        output_length = tf.constant([[6, 6], [10, 10], [11, 11]], dtype=tf.int32)
 
         out_of_range_source_index = tf.constant(-1, dtype=tf.int32)
 
