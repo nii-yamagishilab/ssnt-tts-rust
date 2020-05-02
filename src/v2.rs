@@ -103,10 +103,17 @@ impl<'a> BeamSearchDecodingTable<'a> {
         (lower_bound, upper_bound)
     }
 
+    fn will_overrun(&self, t: usize) -> bool {
+        let remaining_iteration = self.input_length - (t + 1);
+        // ToDo: configure by argument
+        let min_total_duration = remaining_iteration * 3;
+        min_total_duration > self.output_length
+    }
+
     fn on_diagonal(&self, result: &DecodeResult) -> bool {
         let diagonal: f32 = self.output_length as f32 / self.input_length as f32 * result.next_t as f32;
         let diff: f32 = result.total_duration as f32 - diagonal;
-        diff.abs() <= 5.0
+        diff >= -20.0 && diff <= 0.0
     }
 
     fn decode_beam_at(&self, w: usize, t: usize, allow_skip: bool, test_mode: bool) -> Option<Vec<DecodingTable>> {
@@ -122,6 +129,8 @@ impl<'a> BeamSearchDecodingTable<'a> {
             let total_duration: i32 = self.total_duration[w] + duration;
             let (lower_bound, upper_bound) = self.total_duration_bounds(t);
             if !test_mode && (total_duration < lower_bound || total_duration > upper_bound as i32) {
+                None
+            } else if self.will_overrun(t)  {
                 None
             } else if t == self.input_length - 1 {
                 if !test_mode && total_duration != self.output_length as i32 {
