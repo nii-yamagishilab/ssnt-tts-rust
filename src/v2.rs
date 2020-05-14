@@ -130,7 +130,7 @@ impl<'a> BeamSearchDecodingTable<'a> {
             let (lower_bound, upper_bound) = self.total_duration_bounds(t);
             if !test_mode && (total_duration < lower_bound || total_duration > upper_bound as i32) {
                 None
-            } else if self.will_overrun(t)  {
+            } else if !test_mode && self.will_overrun(t)  {
                 None
             } else if t == self.input_length - 1 {
                 if !test_mode && total_duration != self.output_length as i32 {
