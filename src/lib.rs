@@ -3,6 +3,7 @@ extern crate rayon;
 pub mod util;
 pub mod v2;
 pub mod v2_util;
+pub mod tone_latent;
 
 use std::cmp::Ordering;
 use rayon::prelude::*;

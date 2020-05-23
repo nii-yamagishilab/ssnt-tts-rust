@@ -94,3 +94,34 @@ def upsample_source_indexes(duration, output_length, out_of_range_source_index, 
     max_t = duration_shape[2].value
     upsampled_source_indexes.set_shape([batch_size, beam_width, max_t])
     return upsampled_source_indexes
+
+
+def tone_latent_beam_search_decode(h,
+                                   log_prob_history,
+                                   is_finished,
+                                   t,
+                                   u,
+                                   input_length,
+                                   beam_width,
+                                   tone_class_size,
+                                   empty_tone_id):
+    prediction, log_prob, next_t, next_u, next_is_finished, beam_branch = _ssnt.tone_latent_beam_search_decode(
+        h,
+        log_prob_history,
+        is_finished,
+        t,
+        u,
+        tf.cast(input_length, dtype=tf.int32),
+        beam_width,
+        tone_class_size,
+        empty_tone_id)
+
+    batch_size = h.shape[0].value
+    prediction.set_shape(tf.TensorShape([batch_size, beam_width]))
+    log_prob.set_shape(tf.TensorShape([batch_size, beam_width]))
+    next_t.set_shape(tf.TensorShape([batch_size, beam_width]))
+    next_u.set_shape(tf.TensorShape([batch_size, beam_width]))
+    next_is_finished.set_shape(tf.TensorShape([batch_size, beam_width]))
+    beam_branch.set_shape(tf.TensorShape([batch_size, beam_width]))
+
+    return prediction, log_prob, next_t, next_u, next_is_finished, beam_branch
