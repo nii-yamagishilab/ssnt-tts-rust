@@ -23,7 +23,8 @@ lib_srcs = ['src/ssnt_tts_beam_search_decode_op.cc',
             'src/ssnt_extract_best_beam_branch_op.cc',
             'src/ssnt_tts_v2_beam_search_decode_op.cc',
             'src/ssnt_order_beam_branch_op.cc',
-            'src/upsample_source_indexes_op.cc']
+            'src/upsample_source_indexes_op.cc',
+            'src/tone_latent_beam_search_decode_op.cc']
 
 TF_CXX11_ABI = "0"
 extra_compile_args = ['-std=c++11', '-fPIC', '-O2', '-D_GLIBCXX_USE_CXX11_ABI=' + TF_CXX11_ABI]
