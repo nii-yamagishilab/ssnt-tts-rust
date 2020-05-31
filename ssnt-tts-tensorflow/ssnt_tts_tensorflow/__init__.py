@@ -125,3 +125,10 @@ def tone_latent_beam_search_decode(h,
     beam_branch.set_shape(tf.TensorShape([batch_size, beam_width]))
 
     return prediction, log_prob, next_t, next_u, next_is_finished, beam_branch
+
+
+def levenshtein_edit_distance(a, b, a_lengths, b_lengths):
+    batch_size = a.shape[0].value
+    distance = _ssnt.tone_latent_levenshtein_edit_distance(a, b, a_lengths, b_lengths)
+    distance.set_shape(tf.TensorShape([batch_size]))
+    return distance

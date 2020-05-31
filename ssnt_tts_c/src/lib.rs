@@ -1,7 +1,7 @@
 extern crate ssnt_tts;
 extern crate libc;
 
-use ssnt_tts::{SsntTts, SsntTtsCpu, util, v2, v2_util, tone_latent};
+use ssnt_tts::{SsntTts, SsntTtsCpu, util, v2, v2_util, tone_latent, edit_distance};
 use libc::c_float;
 use ssnt_tts::v2::SsntTtsV2;
 use ssnt_tts::tone_latent::{ToneLatent, ToneLatentCpu};
@@ -340,4 +340,42 @@ pub extern fn tone_latent_beam_search_decode(h: *const c_float, log_prob_history
 
     let tone_latent: ToneLatentCpu = tone_latent::ToneLatentCpu::new(batch_size, tone_class_size as usize, empty_tone_id);
     tone_latent.beam_search_decode(h, log_prob_history, is_finished, t, u, input_length, batch_size, beam_width, beam_width, prediction, log_probs, next_t, next_u, next_is_finished, beam_branch);
+}
+
+
+#[no_mangle]
+pub extern fn tone_latent_levenshtein_edit_distance(a: *const i32, b: *const i32, a_lengths: *const i32, b_lengths: *const i32, batch_size: i32, max_length: i32, distance: *mut i32) -> () {
+    let a: &[i32] = unsafe {
+        assert!(!a.is_null());
+        let a_len = batch_size * max_length;
+        std::slice::from_raw_parts(a, a_len as usize)
+    };
+
+    let b: &[i32] = unsafe {
+        assert!(!b.is_null());
+        let b_len = batch_size * max_length;
+        std::slice::from_raw_parts(b, b_len as usize)
+    };
+
+    let a_lengths: &[i32] = unsafe {
+        assert!(!a_lengths.is_null());
+        let a_lengths_len = batch_size;
+        std::slice::from_raw_parts(a_lengths, a_lengths_len as usize)
+    };
+
+    let b_lengths: &[i32] = unsafe {
+        assert!(!b_lengths.is_null());
+        let b_lengths_len = batch_size;
+        std::slice::from_raw_parts(b_lengths, b_lengths_len as usize)
+    };
+
+    let distance: &mut [i32] = unsafe {
+        assert!(!distance.is_null());
+        let distance_len = batch_size;
+        std::slice::from_raw_parts_mut(distance, distance_len as usize)
+    };
+
+    let led: Vec<i32> = edit_distance::levenshtein_edit_distance(a, b, a_lengths, b_lengths,
+                                                                 batch_size as usize, max_length as usize);
+    distance.copy_from_slice(&led);
 }
