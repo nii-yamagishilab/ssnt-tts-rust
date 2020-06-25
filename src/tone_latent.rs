@@ -85,15 +85,11 @@ impl<'a> BeamSearchDecodingTable<'a> {
         }
         let branch: &[f32] = self.beam_branch(w);
         let input_copy: Vec<DecodingTable> = branch.iter().enumerate().filter_map(|(i, v)| {
-            if i as i32 == self.empty_tone_id {
-                None
-            } else {
-                Some(DecodingTable {
-                    log_prob: *v,
-                    tone_class: i as i32,
-                    is_finished: false,
-                })
-            }
+            Some(DecodingTable {
+                log_prob: *v,
+                tone_class: i as i32,
+                is_finished: false,
+            })
         }).collect();
         Some(input_copy)
     }
